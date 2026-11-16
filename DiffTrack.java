@@ -1,286 +1,625 @@
 import java.io.*;
+import java.util.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
 
 public class DiffTrack {
 
+    static Scanner sc = new Scanner(System.in);
+
+    static String DOCUMENT = "Project.txt";
+    static String HISTORY = "versions.dat";
+    static String LOG = "changes.log";
+
+    // Store all document versions
+    static ArrayList<Version> versions = new ArrayList<>();
+
+    static int nextId = 1;
+
+
+    // VERSION CLASS
     static class Version implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
         int id;
         String author;
         String content;
         String time;
 
         Version(int id, String author, String content) {
+
             this.id = id;
             this.author = author;
             this.content = content;
+
             this.time = LocalDateTime.now().format(
                 DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
             );
         }
     }
 
-    static final String FILE = "versions.dat";
-    static ArrayList<Version> versions = new ArrayList<>();
-    static Scanner sc = new Scanner(System.in);
-    static int nextId = 1;
 
+    // MAIN METHOD
     public static void main(String[] args) {
-        loadVersions();
+
+        loadHistory();
 
         while (true) {
+
             System.out.println("\n================================");
-            System.out.println("   DIFFTRACK - VERSION MANAGER");
+            System.out.println("       DIFFTRACK SYSTEM");
             System.out.println("================================");
-            System.out.println("1. Create new version");
-            System.out.println("2. View all versions");
-            System.out.println("3. Compare two versions");
-            System.out.println("4. Rollback to an earlier version");
-            System.out.println("5. Author with most changed lines");
-            System.out.println("6. Exit");
-            System.out.print("Enter choice: ");
+
+            System.out.println("1. Create Shared Document");
+            System.out.println("2. View Document");
+            System.out.println("3. Edit Document");
+            System.out.println("4. Compare Changes");
+            System.out.println("5. View Version History");
+            System.out.println("6. Rollback");
+            System.out.println("7. Exit");
+
+            System.out.print("\nEnter choice: ");
 
             int choice = readInt();
 
             switch (choice) {
-                case 1: createVersion(); break;
-                case 2: viewVersions(); break;
-                case 3: compareVersions(); break;
-                case 4: rollback(); break;
-                case 5: mostChangedAuthor(); break;
+
+                case 1:
+                    createDocument();
+                    break;
+
+                case 2:
+                    viewDocument();
+                    break;
+
+                case 3:
+                    editDocument();
+                    break;
+
+                case 4:
+                    compareChanges();
+                    break;
+
+                case 5:
+                    viewHistory();
+                    break;
+
                 case 6:
-                    saveVersions();
-                    System.out.println("Versions saved. Goodbye!");
+                    rollback();
+                    break;
+
+                case 7:
+                    saveHistory();
+                    System.out.println("Thank you!");
                     return;
+
                 default:
-                    System.out.println("Invalid choice. Try again.");
+                    System.out.println("Invalid choice!");
             }
         }
     }
 
+
+    // READ INTEGER
     static int readInt() {
+
         try {
             return Integer.parseInt(sc.nextLine().trim());
+
         } catch (NumberFormatException e) {
+
             return -1;
         }
     }
 
-    static void createVersion() {
-        System.out.print("Enter author name: ");
-        String author = sc.nextLine().trim();
 
-        if (author.isEmpty()) {
-            System.out.println("Author name cannot be empty.");
-            return;
-        }
-
-        System.out.println("Enter document text.");
-        System.out.println("Type END on a separate line to finish:");
+    // READ MULTILINE CONTENT
+    static String readContent() {
 
         StringBuilder content = new StringBuilder();
 
+        System.out.println("Enter document content.");
+        System.out.println("Type END to finish.");
+
         while (true) {
+
             String line = sc.nextLine();
-            if (line.equals("END")) break;
-            content.append(line).append("\n");
-        }
 
-        Version v = new Version(nextId++, author, content.toString());
-        versions.add(v);
-        saveVersions();
-
-        System.out.println("Version created successfully. ID: " + v.id);
-    }
-
-    static void viewVersions() {
-        if (versions.isEmpty()) {
-            System.out.println("No versions available.");
-            return;
-        }
-
-        for (Version v : versions) {
-            System.out.println("\nVersion ID: " + v.id);
-            System.out.println("Author: " + v.author);
-            System.out.println("Time: " + v.time);
-            System.out.println("Content:\n" + v.content);
-            System.out.println("------------------------------");
-        }
-    }
-
-    static Version findVersion(int id) {
-        for (Version v : versions) {
-            if (v.id == id) return v;
-        }
-        return null;
-    }
-
-    static void compareVersions() {
-        System.out.print("Enter first version ID: ");
-        Version a = findVersion(readInt());
-
-        System.out.print("Enter second version ID: ");
-        Version b = findVersion(readInt());
-
-        if (a == null || b == null) {
-            System.out.println("Invalid version ID.");
-            return;
-        }
-
-        String[] x = a.content.split("\n", -1);
-        String[] y = b.content.split("\n", -1);
-
-        int m = x.length, n = y.length;
-        int[][] dp = new int[m + 1][n + 1];
-
-        // Longest Common Subsequence (LCS)
-        for (int i = m - 1; i >= 0; i--) {
-            for (int j = n - 1; j >= 0; j--) {
-                if (x[i].equals(y[j])) {
-                    dp[i][j] = 1 + dp[i + 1][j + 1];
-                } else {
-                    dp[i][j] = Math.max(
-                        dp[i + 1][j], dp[i][j + 1]
-                    );
-                }
+            if (line.equalsIgnoreCase("END")) {
+                break;
             }
-        }
 
-        System.out.println("\n--- Comparing V" + a.id +
-                           " with V" + b.id + " ---");
-
-        int i = 0, j = 0;
-        while (i < m && j < n) {
-            if (x[i].equals(y[j])) {
-                System.out.println("  " + x[i]);
-                i++;
-                j++;
-            } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-                System.out.println("- " + x[i]);
-                i++;
-            } else {
-                System.out.println("+ " + y[j]);
-                j++;
+            if (content.length() > 0) {
+                content.append("\n");
             }
+
+            content.append(line);
         }
 
-        while (i < m) System.out.println("- " + x[i++]);
-        while (j < n) System.out.println("+ " + y[j++]);
-
-        System.out.println("Comparison complete.");
+        return content.toString();
     }
 
-    static void rollback() {
-        System.out.print("Enter version ID to restore: ");
-        Version old = findVersion(readInt());
 
-        if (old == null) {
-            System.out.println("Version not found.");
+    // CREATE SHARED DOCUMENT
+    static void createDocument() {
+
+        File file = new File(DOCUMENT);
+
+        if (file.exists()) {
+
+            System.out.println(
+                "Document already exists. Use Edit Document instead."
+            );
+
             return;
         }
 
-        System.out.print("Enter your author name: ");
+        System.out.print("Enter developer name: ");
+
         String author = sc.nextLine().trim();
 
         if (author.isEmpty()) {
-            System.out.println("Author name cannot be empty.");
+            System.out.println("Author cannot be empty.");
             return;
         }
 
-        Version restored = new Version(
-            nextId++, author, old.content
+        String content = readContent();
+
+        writeDocument(content);
+
+        saveVersion(content, author);
+
+        System.out.println("Shared document created successfully!");
+    }
+
+
+    // VIEW SHARED DOCUMENT
+    static void viewDocument() {
+
+        try {
+
+            File file = new File(DOCUMENT);
+
+            if (!file.exists()) {
+
+                System.out.println("Document does not exist.");
+                return;
+            }
+
+            BufferedReader reader =
+                new BufferedReader(new FileReader(file));
+
+            System.out.println("\n========== SHARED DOCUMENT ==========");
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+
+                System.out.println(line);
+            }
+
+            reader.close();
+
+        } catch (IOException e) {
+
+            System.out.println("Error reading document.");
+        }
+    }
+
+
+    // EDIT EXISTING DOCUMENT
+    static void editDocument() {
+
+        File file = new File(DOCUMENT);
+
+        if (!file.exists()) {
+
+            System.out.println("Create a document first.");
+            return;
+        }
+
+        String oldContent = readDocument();
+
+        System.out.print("Enter developer name: ");
+
+        String author = sc.nextLine().trim();
+
+        if (author.isEmpty()) {
+
+            System.out.println("Author cannot be empty.");
+            return;
+        }
+
+        System.out.println("\nCurrent document:");
+
+        System.out.println(oldContent);
+
+        System.out.println("\nEnter the UPDATED document:");
+
+        String newContent = readContent();
+
+        if (oldContent.equals(newContent)) {
+
+            System.out.println("No changes detected.");
+            return;
+        }
+
+        writeDocument(newContent);
+
+        saveVersion(newContent, author);
+
+        System.out.println("\nDocument updated successfully!");
+
+        compareText(oldContent, newContent);
+    }
+
+
+    // READ DOCUMENT FROM FILE
+    static String readDocument() {
+
+        StringBuilder content = new StringBuilder();
+
+        try {
+
+            BufferedReader reader =
+                new BufferedReader(new FileReader(DOCUMENT));
+
+            String line;
+
+            while ((line = reader.readLine()) != null) {
+
+                if (content.length() > 0) {
+                    content.append("\n");
+                }
+
+                content.append(line);
+            }
+
+            reader.close();
+
+        } catch (IOException e) {
+
+            System.out.println("Error reading file.");
+        }
+
+        return content.toString();
+    }
+
+
+    // WRITE DOCUMENT TO FILE
+    static void writeDocument(String content) {
+
+        try {
+
+            FileWriter writer = new FileWriter(DOCUMENT);
+
+            writer.write(content);
+
+            writer.close();
+
+        } catch (IOException e) {
+
+            System.out.println("Error writing document.");
+        }
+    }
+
+
+    // SAVE A NEW VERSION
+    static void saveVersion(String content, String author) {
+
+        Version v = new Version(
+            nextId++,
+            author,
+            content
         );
 
-        versions.add(restored);
-        saveVersions();
+        versions.add(v);
 
-        System.out.println("Rollback saved as new version ID: "
-                           + restored.id);
+        saveHistory();
+
+        saveLog(v);
+
+        System.out.println("Version saved. ID: " + v.id);
     }
 
-    static void mostChangedAuthor() {
-        if (versions.size() < 2) {
-            System.out.println("Create at least two versions first.");
-            return;
-        }
 
-        Map<String, Integer> changes = new HashMap<>();
+    // COMPARE TWO TEXTS USING LCS
+    static void compareText(String oldText, String newText) {
 
-        for (int k = 1; k < versions.size(); k++) {
-            Version previous = versions.get(k - 1);
-            Version current = versions.get(k);
+        // Normalize Windows and old-style line endings before comparing.
+        String[] a = getLines(oldText);
+        String[] b = getLines(newText);
 
-            int count = countChanges(
-                previous.content, current.content
-            );
+        int m = a.length;
+        int n = b.length;
 
-            changes.merge(current.author, count, Integer::sum);
-        }
-
-        String bestAuthor = "";
-        int maximum = -1;
-
-        for (Map.Entry<String, Integer> entry : changes.entrySet()) {
-            if (entry.getValue() > maximum) {
-                maximum = entry.getValue();
-                bestAuthor = entry.getKey();
-            }
-        }
-
-        System.out.println("Author with most changed lines: "
-                           + bestAuthor);
-        System.out.println("Changed lines: " + maximum);
-    }
-
-    static int countChanges(String oldText, String newText) {
-        String[] a = oldText.split("\n", -1);
-        String[] b = newText.split("\n", -1);
-
-        int m = a.length, n = b.length;
         int[][] dp = new int[m + 1][n + 1];
 
+        // Build the LCS table.
         for (int i = m - 1; i >= 0; i--) {
             for (int j = n - 1; j >= 0; j--) {
                 if (a[i].equals(b[j])) {
                     dp[i][j] = 1 + dp[i + 1][j + 1];
                 } else {
-                    dp[i][j] = Math.max(
-                        dp[i + 1][j], dp[i][j + 1]
-                    );
+                    dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
                 }
             }
         }
 
-        // Deleted lines + added lines
-        return (m - dp[0][0]) + (n - dp[0][0]);
+        int i = 0;
+        int j = 0;
+
+        int added = 0;
+        int removed = 0;
+        int modified = 0;
+        int unchanged = 0;
+
+        ArrayList<String> deleted = new ArrayList<>();
+        ArrayList<String> inserted = new ArrayList<>();
+
+        System.out.println("\n================================");
+        System.out.println("         CHANGE REPORT");
+        System.out.println("================================");
+
+        while (i < m && j < n) {
+
+            if (a[i].equals(b[j])) {
+
+                // Finish the changed block before displaying the unchanged line.
+                int[] result = showChanges(deleted, inserted);
+                added += result[0];
+                removed += result[1];
+                modified += result[2];
+
+                deleted.clear();
+                inserted.clear();
+
+                System.out.println("\n[UNCHANGED]");
+                System.out.println(a[i]);
+                unchanged++;
+
+                i++;
+                j++;
+
+            } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                deleted.add(a[i]);
+                i++;
+            } else {
+                inserted.add(b[j]);
+                j++;
+            }
+        }
+
+        // Collect any remaining lines after the LCS traversal.
+        while (i < m) {
+            deleted.add(a[i]);
+            i++;
+        }
+
+        while (j < n) {
+            inserted.add(b[j]);
+            j++;
+        }
+
+        // Finish the final changed block.
+        int[] result = showChanges(deleted, inserted);
+        added += result[0];
+        removed += result[1];
+        modified += result[2];
+
+        System.out.println("\n========== SUMMARY ==========");
+        System.out.println("Added Lines: " + added);
+        System.out.println("Removed Lines: " + removed);
+        System.out.println("Modified Lines: " + modified);
+        System.out.println("Unchanged Lines: " + unchanged);
     }
 
-    static void saveVersions() {
-        try (ObjectOutputStream out =
-                 new ObjectOutputStream(new FileOutputStream(FILE))) {
-            out.writeObject(versions);
-        } catch (IOException e) {
-            System.out.println("Error saving versions: " + e.getMessage());
+    // Convert text into lines without creating a fake line for an empty document.
+    static String[] getLines(String text) {
+        if (text == null || text.isEmpty()) {
+            return new String[0];
+        }
+
+        String normalized = text.replace("\r\n", "\n").replace("\r", "\n");
+        return normalized.split("\n", -1);
+    }
+
+    // Display one group of changes and return {added, removed, modified}.
+    static int[] showChanges(
+        ArrayList<String> deleted,
+        ArrayList<String> inserted
+    ) {
+
+        int common = Math.min(deleted.size(), inserted.size());
+
+        int added = 0;
+        int removed = 0;
+        int modified = 0;
+
+        // Pair one old line with one new line and count it as one modification.
+        for (int k = 0; k < common; k++) {
+            System.out.println("\n[MODIFIED]");
+            System.out.println("OLD: " + deleted.get(k));
+            System.out.println("NEW: " + inserted.get(k));
+            modified++;
+        }
+
+        // Extra old lines are removals.
+        for (int k = common; k < deleted.size(); k++) {
+            System.out.println("\n[REMOVED]");
+            System.out.println("- " + deleted.get(k));
+            removed++;
+        }
+
+        // Extra new lines are additions.
+        for (int k = common; k < inserted.size(); k++) {
+            System.out.println("\n[ADDED]");
+            System.out.println("+ " + inserted.get(k));
+            added++;
+        }
+
+        return new int[]{added, removed, modified};
+    }
+
+
+    // COMPARE PREVIOUS AND CURRENT DOCUMENT
+    static void compareChanges() {
+
+        if (versions.size() < 2) {
+
+            System.out.println("At least two versions required.");
+            return;
+        }
+
+        Version old = versions.get(versions.size() - 2);
+
+        Version current = versions.get(versions.size() - 1);
+
+        System.out.println("\nModified by: " + current.author);
+
+        System.out.println("Version: " + old.id +
+                           " -> " + current.id);
+
+        compareText(old.content, current.content);
+    }
+
+
+    // DISPLAY VERSION HISTORY
+    static void viewHistory() {
+
+        for (Version v : versions) {
+
+            System.out.println("\nVersion ID: " + v.id);
+
+            System.out.println("Author: " + v.author);
+
+            System.out.println("Time: " + v.time);
         }
     }
 
+
+    // ROLLBACK
+    static void rollback() {
+
+        System.out.print("Enter version ID to restore: ");
+
+        int id = readInt();
+
+        Version old = null;
+
+        for (Version v : versions) {
+
+            if (v.id == id) {
+
+                old = v;
+                break;
+            }
+        }
+
+        if (old == null) {
+
+            System.out.println("Version not found.");
+            return;
+        }
+
+        System.out.print("Enter developer name: ");
+
+        String author = sc.nextLine().trim();
+
+        if (author.isEmpty()) {
+
+            System.out.println("Author cannot be empty.");
+            return;
+        }
+
+        String currentContent = readDocument();
+
+        writeDocument(old.content);
+
+        saveVersion(old.content, author);
+
+        System.out.println("Document restored successfully!");
+
+        compareText(currentContent, old.content);
+    }
+
+
+    // SAVE VERSION HISTORY
+    static void saveHistory() {
+
+        try {
+
+            ObjectOutputStream out =
+                new ObjectOutputStream(
+                    new FileOutputStream(HISTORY)
+                );
+
+            out.writeObject(versions);
+
+            out.close();
+
+        } catch (IOException e) {
+
+            System.out.println("Error saving history.");
+        }
+    }
+
+
+    // LOAD VERSION HISTORY
     @SuppressWarnings("unchecked")
-    static void loadVersions() {
-        File file = new File(FILE);
+    static void loadHistory() {
 
-        if (!file.exists()) return;
+        File file = new File(HISTORY);
 
-        try (ObjectInputStream in =
-                 new ObjectInputStream(new FileInputStream(file))) {
+        if (!file.exists()) {
+            return;
+        }
+
+        try {
+
+            ObjectInputStream in =
+                new ObjectInputStream(
+                    new FileInputStream(HISTORY)
+                );
+
             versions = (ArrayList<Version>) in.readObject();
 
+            in.close();
+
             for (Version v : versions) {
+
                 nextId = Math.max(nextId, v.id + 1);
             }
-        } catch (IOException | ClassNotFoundException e) {
-            System.out.println("Could not load saved versions: "
-                               + e.getMessage());
+
+            System.out.println("Previous history loaded.");
+
+        } catch (Exception e) {
+
+            System.out.println("Could not load history: " +
+                               e.getMessage());
+        }
+    }
+
+
+    // RECORD CHANGES IN LOG FILE
+    static void saveLog(Version v) {
+
+        try {
+
+            FileWriter writer = new FileWriter(LOG, true);
+
+            writer.write(
+                "Version: " + v.id +
+                " | Developer: " + v.author +
+                " | Time: " + v.time + "\n"
+            );
+
+            writer.close();
+
+        } catch (IOException e) {
+
+            System.out.println("Error writing log.");
         }
     }
 }
